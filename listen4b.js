@@ -246,8 +246,7 @@ function generateHTML(getpath, i) {
     html.push('Once we get to this point, javascript makes server management easy!</br>');
     html.push('This is a blocking socket. We need to put a thread on each request.</br>');
     html.push('The problem I am facing is that the browsers are greedily connecting again.<br>');
-    html.push('It is because I have to restart the script. Something is out of order in WSL.');
-    html.push('Each client is going to need its own thread somehow, so we are pushing FDs');
+    html.push(<br><br>');
     html.push('<form action="/up" method="post" enctype="multipart/form-data">');
     html.push('<input type="file" id="myfile" name="filename"><input type="submit">');
     html.push('</form>')
