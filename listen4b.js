@@ -8,6 +8,7 @@ const sock = await import(`./sock.${isWin ? 'dll' : 'so'}`);
 console.log(sock);
 
 const JSHDRSTR = " ************************ ";
+var JSLOGGING = 0;
 
 var tmpfilename;
 function getTmpFile() {
