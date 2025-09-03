@@ -1,0 +1,54 @@
+============================================================
+   HOW TO SEE YOUR USAGE OF CHATS AND PREMIUM REQUESTS
+============================================================
+
+1. Initialize the library:
+   sock.init();
+✓ Socket library initialized
+
+2. Use your application (track your usage):
+   // Every time you make a chat request:
+   sock.trackChatRequest();
+   // Every time you make a premium request:
+   sock.trackPremiumRequest();
+   // Connections and data transfer are tracked automatically
+
+3. 🎯 SEE YOUR USAGE (this answers your question!):
+   let stats = sock.getUsageStats();
+
+========================================
+         YOUR CURRENT USAGE
+========================================
+📱 Chat requests: 3
+⭐ Premium requests: 2
+🔗 Total connections: 1
+📊 Data transferred: 1024 bytes sent, 512 bytes received
+========================================
+
+4. You can also format it however you like:
+   console.log(`You have made ${stats.chatRequests} chat requests`);
+   console.log(`You have made ${stats.premiumRequests} premium requests`);
+
+   ➜ You have made 3 chat requests
+   ➜ You have made 2 premium requests
+
+5. Get detailed breakdown:
+   ➜ Total requests: 5
+   ➜ Premium usage: 40.0% of your requests
+   ➜ Data usage: 1024.50 KB total
+
+6. Optional: Reset your usage counters:
+   sock.resetUsageStats();
+
+============================================================
+🎉 THAT'S IT! You now know how to see your usage!
+============================================================
+
+To use this in your actual application:
+1. Import the compiled socks library: import * as sock from './sock.so'
+2. Call sock.trackChatRequest() when you make chat requests
+3. Call sock.trackPremiumRequest() when you make premium requests
+4. Call sock.getUsageStats() to see your current usage
+
+The library automatically tracks connections and data transfer for you!
+✓ Library cleaned up
