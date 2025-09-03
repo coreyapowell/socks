@@ -22,6 +22,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include <stdint.h>
+
+/* Usage tracking structure for monitoring chat and premium requests */
+typedef struct {
+    uint64_t chat_requests;
+    uint64_t premium_requests;
+    uint64_t total_connections;
+    uint64_t bytes_sent;
+    uint64_t bytes_received;
+} usage_stats_t;
+
+static usage_stats_t global_usage_stats = {0};
+
 #ifndef QUICKJS_H
 /* this file is cross compatible with tacking onto the end of quickjs-libc.c
   or doing it the right way and compiling into a .dll or .so */
@@ -1160,6 +1173,10 @@ static JSValue js_Socket_bind_connect(JSContext *ctx, JSValueConst this_val,
     if (sa->c_addr.sin_family == AF_INET6) len = sizeof(sa->c_addr6);
     if (magic) {
         result = connect(s->handle, (struct sockaddr*) &(sa->c_addr), len);
+        // Track successful connections
+        if (result >= 0) {
+            global_usage_stats.total_connections++;
+        }
     } else {
     /* setsockopts 
           int optval = 1;
@@ -1232,6 +1249,8 @@ static JSValue js_Socket_accept(JSContext *ctx, JSValueConst this_val,
         return JS_EXCEPTION;
 #endif            
     };
+    // Track successful connections
+    global_usage_stats.total_connections++;
 /*
     proto = JS_GetClassProto(ctx, js_Socket_ClassID);
     if (JS_IsException(proto)) goto accept_fail;   
@@ -1302,6 +1321,8 @@ static JSValue js_Socket_recv_send(JSContext *ctx, JSValueConst this_val,
             return JS_EXCEPTION;
 #endif
         };
+        // Track bytes sent
+        global_usage_stats.bytes_sent += len;
     } else {
         //if (magic == 3) buf = &buf[offset];
         int total = 0;
@@ -1334,9 +1355,15 @@ static JSValue js_Socket_recv_send(JSContext *ctx, JSValueConst this_val,
               }; 
               
             };
+            // Track bytes received
+            global_usage_stats.bytes_received += total;
             return JS_NewInt64(ctx, total);
         };
     };
+    // Track bytes received for direct recv calls
+    if (!(magic & 1) && len > 0) {
+        global_usage_stats.bytes_received += len;
+    }
     return JS_NewInt64(ctx, len);
 };
                             
@@ -1387,6 +1414,67 @@ static JSValue js_socks_cleanup(JSContext *ctx, JSValueConst this_val,
 #if defined(_WIN32)
     WSACleanup();
 #endif
+    return JS_UNDEFINED;
+};
+
+/* Usage tracking functions */
+static JSValue js_socks_track_chat_request(JSContext *ctx, JSValueConst this_val,
+                                          int argc, JSValueConst *argv) {
+    global_usage_stats.chat_requests++;
+    return JS_NewInt64(ctx, global_usage_stats.chat_requests);
+};
+
+static JSValue js_socks_track_premium_request(JSContext *ctx, JSValueConst this_val,
+                                             int argc, JSValueConst *argv) {
+    global_usage_stats.premium_requests++;
+    return JS_NewInt64(ctx, global_usage_stats.premium_requests);
+};
+
+static JSValue js_socks_track_connection(JSContext *ctx, JSValueConst this_val,
+                                        int argc, JSValueConst *argv) {
+    global_usage_stats.total_connections++;
+    return JS_NewInt64(ctx, global_usage_stats.total_connections);
+};
+
+static JSValue js_socks_track_bytes(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv) {
+    if (argc < 2) {
+        JS_ThrowTypeError(ctx, "trackBytes requires 2 arguments: sent, received");
+        return JS_EXCEPTION;
+    }
+    
+    int64_t sent, received;
+    if (JS_ToInt64(ctx, &sent, argv[0])) return JS_EXCEPTION;
+    if (JS_ToInt64(ctx, &received, argv[1])) return JS_EXCEPTION;
+    
+    global_usage_stats.bytes_sent += sent;
+    global_usage_stats.bytes_received += received;
+    
+    return JS_UNDEFINED;
+};
+
+static JSValue js_socks_get_usage_stats(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv) {
+    JSValue obj = JS_NewObject(ctx);
+    if (JS_IsException(obj)) return obj;
+    
+    JS_SetPropertyStr(ctx, obj, "chatRequests", JS_NewInt64(ctx, global_usage_stats.chat_requests));
+    JS_SetPropertyStr(ctx, obj, "premiumRequests", JS_NewInt64(ctx, global_usage_stats.premium_requests));
+    JS_SetPropertyStr(ctx, obj, "totalConnections", JS_NewInt64(ctx, global_usage_stats.total_connections));
+    JS_SetPropertyStr(ctx, obj, "bytesSent", JS_NewInt64(ctx, global_usage_stats.bytes_sent));
+    JS_SetPropertyStr(ctx, obj, "bytesReceived", JS_NewInt64(ctx, global_usage_stats.bytes_received));
+    
+    return obj;
+};
+
+static JSValue js_socks_reset_usage_stats(JSContext *ctx, JSValueConst this_val,
+                                         int argc, JSValueConst *argv) {
+    global_usage_stats.chat_requests = 0;
+    global_usage_stats.premium_requests = 0;
+    global_usage_stats.total_connections = 0;
+    global_usage_stats.bytes_sent = 0;
+    global_usage_stats.bytes_received = 0;
+    
     return JS_UNDEFINED;
 };
 
@@ -1448,6 +1536,13 @@ static const JSCFunctionListEntry js_socks_proto_functs[] = {
     JS_CFUNC_DEF("parseSocketAddress", 1, js_SocketAddress_ctor),
     JS_CFUNC_MAGIC_DEF("recv", 4, js_socks_recv_send, 0 ),
     JS_CFUNC_MAGIC_DEF("send", 4, js_socks_recv_send, 1 ),
+    // Usage tracking functions
+    JS_CFUNC_DEF("trackChatRequest", 0, js_socks_track_chat_request),
+    JS_CFUNC_DEF("trackPremiumRequest", 0, js_socks_track_premium_request),
+    JS_CFUNC_DEF("trackConnection", 0, js_socks_track_connection),
+    JS_CFUNC_DEF("trackBytes", 2, js_socks_track_bytes),
+    JS_CFUNC_DEF("getUsageStats", 0, js_socks_get_usage_stats),
+    JS_CFUNC_DEF("resetUsageStats", 0, js_socks_reset_usage_stats),
 // socket family
     OS_FLAG(AF_UNSPEC),
     OS_FLAG(AF_INET),
